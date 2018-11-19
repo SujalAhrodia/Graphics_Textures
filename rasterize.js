@@ -4,14 +4,14 @@
 const WIN_Z = 0;  // default graphics window z coord in world space
 const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in world space
 const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
-const INPUT_TRIANGLES_URL = "http://localhost:8000/triangles.json"
+const INPUT_TRIANGLES_URL = "https://ajgavane.github.io/Computer_Graphics/triangles.json";
+//"http://localhost:8000/triangles.json"
 //"https://ncsucgclass.github.io/prog4/triangles.json"; // triangles file loc
 const INPUT_ELLIPSOIDS_URL = "https://pages.github.ncsu.edu/cgclass/exercise5/ellipsoids.json"; // ellipsoids file loc
 
 //Default Eye and Light positions
 var Eye = new vec3.fromValues(0.5,0.5,-0.5); // default eye position in world space
 var Light = new vec3.fromValues(-3, 1, -0.5);
-//(-3,1,-0.5)
 
 //Default lookAt and up
 var lookAt = new vec3.fromValues(0, 0, 1);
@@ -33,6 +33,7 @@ var origin_tup = new vec3.fromValues(0,0,0);
 var inputTriangles; // the triangles read in from json
 var numTriangleSets = 0; // the number of sets of triangles
 var triSetSizes = []; // the number of triangles in each set
+var sortedTriangleSets = []; //sorted triangle sets
 
 /* webgl globals */
 var gl = null; // the all powerful gl object. It's all here folks!
@@ -146,39 +147,6 @@ function setupWebGL() {
  
 } // end setupWebGL
 
-//CORS = Cross Origin Resource Sharing. 
-//It's a way for the webpage to ask the image server for permission to use the image.
-//There are 3 values you can set crossOrigin to. 
-//One is undefined which is the default which means "do not ask for permission". 
-//Another is "anonymous" which means ask for permission but don't send extra info. 
-//The last is "use-credentials" which means send cookies and other info the server might look at to decide whether or not it give permission. 
-//If crossOrigin is set to any other value it's the same as setting it to anonymous.
-
-function requestCORSIfNotSameOrigin(img, url) {
-    if ((new URL(url)).origin !== window.location.origin) {
-        img.crossOrigin = "Anonymous";
-    }
-}
-
-//load the textures on triangles
-function loadTextures(url)
-{
-    var ret = gl.createTexture();
-    var img = new Image();
-
-    img.addEventListener('load', function() {
-        gl.bindTexture(gl.TEXTURE_2D, ret);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.generateMipmap(gl.TEXTURE_2D);
-    });
-    requestCORSIfNotSameOrigin(img, url);
-    img.src = url;
-    return ret;
-}
 // read triangles in, load them into webgl buffers
 function loadTriangles() {
     inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
@@ -225,12 +193,6 @@ function loadTriangles() {
                 inputTriangles[whichSet].uvArray.push(uvToAdd[0], uvToAdd[1]);
             } // end for vertices in set
 
-            //console.log("value:"+ inputTriangles[whichSet].uvArray);
-
-            inputTriangles[whichSet].textureImage = loadTextures("https://ncsucgclass.github.io/prog4/" + inputTriangles[whichSet].material.texture);
-            
-            //console.log("values:"+ inputTriangles[whichSet].textureImage);
-
             // send the vertex coords to webGL
             vertexBuffers[whichSet] = gl.createBuffer(); // init empty vertex coord buffer for current set
             gl.bindBuffer(gl.ARRAY_BUFFER,vertexBuffers[whichSet]); // activate that buffer
@@ -250,9 +212,11 @@ function loadTriangles() {
             inputTriangles[whichSet].indexArray = []; // create a list of tri indices for this tri set
             triSetSizes[whichSet] = inputTriangles[whichSet].triangles.length;
             
-            for (whichSetTri=0; whichSetTri<triSetSizes[whichSet]; whichSetTri++) {
+            for (whichSetTri=0; whichSetTri<triSetSizes[whichSet]; whichSetTri++) 
+            {
                 triToAdd = inputTriangles[whichSet].triangles[whichSetTri];
                 inputTriangles[whichSet].indexArray.push(triToAdd[0],triToAdd[1],triToAdd[2]);
+                //console.log("values:"+ inputTriangles[whichSetTri].indexArray);
             } // end for triangles in set
 
             // send the triangle indices to webGL
@@ -304,10 +268,6 @@ function setupShaders() {
             //Blinn-Phong
             vec3 H = normalize(V+L);
             specular = pow(max(dot(H,N),0.0),n);
-            
-            //Ka: ambient
-            //Kd*lambertian: diffuse
-            //Ks*specular: specular
 
             vec3 color = Ka + Kd*lambertian + Ks*specular;
 
@@ -392,12 +352,10 @@ function setupShaders() {
 
                 modelMatrixULoc = gl.getUniformLocation(shaderProgram, "uModelMatrix"); // ptr to mmat
                 viewMatrixULoc = gl.getUniformLocation(shaderProgram, "uViewMatrix"); //ptr to vmat
-                perspectiveMatrixULoc = gl.getUniformLocation(shaderProgram, "uPerpectiveMatrix");
-                normalMatrixULoc = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
+                perspectiveMatrixULoc = gl.getUniformLocation(shaderProgram, "uPerpectiveMatrix"); //ptr to pmat
+                normalMatrixULoc = gl.getUniformLocation(shaderProgram, "uNormalMatrix"); //ptr to nmat
 
-                vertexMode = gl.getUniformLocation(shaderProgram, "mode");
-
-                vertexAmbient = gl.getUniformLocation(shaderProgram, "Ka");
+                vertexAmbient = gl.getUniformLocation(shaderProgram, "Ka"); 
                 vertexDiffuse = gl.getUniformLocation(shaderProgram, "Kd");
                 vertexSpecular = gl.getUniformLocation(shaderProgram, "Ks");
                 vertexExp = gl.getUniformLocation(shaderProgram, "n");
@@ -408,6 +366,7 @@ function setupShaders() {
                 lightModelULoc = gl.getUniformLocation(shaderProgram, "lightModel");
                 uAlphaULoc = gl.getUniformLocation(shaderProgram, "uAlpha");
 
+                //enable the attributes
                 gl.enableVertexAttribArray(vertexPositionAttrib); 
                 gl.enableVertexAttribArray(vertexNormalAttrib); 
                 gl.enableVertexAttribArray(vertexUVAttrib);
@@ -454,11 +413,40 @@ function myLookAt(viewMat, Eye, lookAtP, up)
     return viewMat;
 }
 
+//Calculating triangle normals
 function Triangle_Normals() {
     for (var whichTriSet=0; whichTriSet<numTriangleSets; whichTriSet++) {
         mat4.invert(inputTriangles[whichTriSet].nMatrix, inputTriangles[whichTriSet].mMatrix);
         mat4.transpose(inputTriangles[whichTriSet].nMatrix, inputTriangles[whichTriSet].nMatrix);
         //console.log(inputTriangles[whichTriSet].nMatrix);
+    }
+}
+
+//Depth Sorting according to the z-positions
+function dsort()
+{
+    var temp = [], temp1 = [];
+    for(whichTriSet=0; whichTriSet<numTriangleSets; whichTriSet++)
+    {
+        temp[whichTriSet] = Centroid(whichTriSet)[2];
+    }
+    for(whichTriSet=0; whichTriSet<numTriangleSets; whichTriSet++)
+    {
+        temp1[whichTriSet] = Centroid(whichTriSet)[2];
+    }
+
+    temp1.sort();
+    temp1.reverse();
+
+    for(var i=0; i<temp1.length; i++)
+    {
+        for(var j=0; j<temp.length; j++)
+        {
+            if(temp1[i] == temp[j])
+            {
+                sortedTriangleSets[i] = j;
+            }
+        }
     }
 }
 
@@ -473,7 +461,6 @@ function render(whichTriSet)
         gl.uniform3fv(vertexEye, Eye);
         gl.uniform3fv(vertexLight, Light);
         gl.uniform1i(vertexUSampler, 0);
-
 
         gl.uniform1i(lightModelULoc, lightModel);
         gl.uniform3fv(vertexAmbient, inputTriangles[whichTriSet].Ka);
@@ -491,14 +478,8 @@ function render(whichTriSet)
         gl.vertexAttribPointer(vertexNormalAttrib,3,gl.FLOAT,false,0,0); // feed
 
         gl.activeTexture(gl.TEXTURE0);
-        
-        //To-be updated : select between setup and load functions      
-        //setupTexture()
         gl.bindTexture(gl.TEXTURE_2D, textures[whichTriSet]);
         
-        //loadTexture()
-        //gl.bindTexture(gl.TEXTURE_2D, inputTriangles[whichTriSet].textureImage);
-
         //vertex uvs buffer: activate and feed into vertex shader
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexUVBuffers[whichTriSet]); //activate
         gl.vertexAttribPointer(vertexUVAttrib, 2, gl.FLOAT, false, 0, 0); //feed
@@ -548,6 +529,8 @@ function renderTriangles() {
 
     Triangle_Normals();
 
+    dsort();
+
     //for opaque objects
     gl.depthMask(true);
     gl.disable(gl.BLEND);
@@ -556,9 +539,9 @@ function renderTriangles() {
     for(var whichTriSet=0; whichTriSet<numTriangleSets; whichTriSet++)
     {
         //render opaque
-        if(inputTriangles[whichTriSet].alpha == 1)
+        if(inputTriangles[whichTriSet].alpha == 1.0)
         {
-            gl.uniform1f(uAlphaULoc, 1);
+            gl.uniform1f(uAlphaULoc, 1.0);
             render(whichTriSet);
         }
     }
@@ -568,8 +551,9 @@ function renderTriangles() {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    for(var whichTriSet=0; whichTriSet<numTriangleSets; whichTriSet++)
+    for(var i=0; i<sortedTriangleSets.length; i++)
     {
+        var whichTriSet = sortedTriangleSets[i];
         //render transparent
         if(inputTriangles[whichTriSet].alpha != 1)
         {
@@ -1305,20 +1289,20 @@ function setupTexture()
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
                 gl.bindTexture(gl.TEXTURE_2D, null);
-
             }
-
          })(whichTriSet);
          textures[whichTriSet].image.src = "https://ncsucgclass.github.io/prog4/" + inputTriangles[whichTriSet].material.texture;
     }
 }
 //
-function main() {
-  window.addEventListener("keydown", moveThings, false);
-  setupWebGL(); // set up the webGL environment
-  loadTriangles(); // load in the triangles from tri file
-  setupShaders(); // setup the webGL shaders
-  setupTexture();
-  renderTriangles(); // draw the triangles using webGL
+function main() 
+{
+    window.addEventListener("keydown", moveThings, false);
+    setupWebGL(); // set up the webGL environment
+    loadTriangles(); // load in the triangles from tri file
+    setupShaders(); // setup the webGL shaders
+    setupTexture();
+    dsort();
+    renderTriangles(); // draw the triangles using webGL
   
 } // end main
